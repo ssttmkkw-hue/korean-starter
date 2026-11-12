@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { speakScenarios, speakIntro } from '../data/speakScenarios'
 import { askTutor, similarity, diffSyllables } from '../utils/koreanAi'
 import { useKoreanASR } from '../useKoreanASR'
+import { AI_VOICE_ENABLED } from '../config'
 
 const SETTINGS_KEY = 'korean-speak-settings-v1'
 
@@ -24,7 +25,19 @@ function scoreWord(score) {
   return { t: '差别比较大，先听一遍再跟读', c: 'low' }
 }
 
-export default function SpeakPractice({ speak, stop, slow, active }) {
+// 开关关闭时只渲染提示，不挂载下面的练习组件：不会创建语音识别、不会申请麦克风、不会请求 AI 代理
+export default function SpeakPractice(props) {
+  if (!AI_VOICE_ENABLED) {
+    return (
+      <div className="sp">
+        <p className="drama-notice">🎤 语音练习暂时关闭（语音输入和 AI 口语陪练正在维护中），敬请期待。</p>
+      </div>
+    )
+  }
+  return <SpeakPracticeLive {...props} />
+}
+
+function SpeakPracticeLive({ speak, stop, slow, active }) {
   const [scenarioId, setScenarioId] = useState(null)
   const [messages, setMessages] = useState([])
   const [hints, setHints] = useState([])

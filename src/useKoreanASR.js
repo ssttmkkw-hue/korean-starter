@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AI_VOICE_ENABLED } from './config'
 
-const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null
+// 开关关闭时视为不支持语音识别：不会创建 SpeechRecognition，也就不会申请麦克风
+const SR =
+  AI_VOICE_ENABLED && typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null
 
 const ERROR_TEXT = {
   'not-allowed': '麦克风被拒绝了：请在浏览器地址栏左侧的权限里允许使用麦克风。',

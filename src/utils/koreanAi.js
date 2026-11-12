@@ -1,4 +1,5 @@
 import { decomposeSyllable } from './hangulCompose.js'
+import { AI_VOICE_ENABLED } from '../config.js'
 
 // 和 ai-message / ai-companion 用的是同一个函数计算代理：POST { messages, max_tokens, temperature } → { reply }
 // 不传 model，由代理自己挑可用的模型（指定 qwen3.7-flash 时免费额度已用完，会 503）
@@ -71,6 +72,8 @@ function extractJson(text) {
 }
 
 async function post(messages, { maxTokens = 600, temperature = 0.8 } = {}) {
+  // 兜底：开关关闭时绝不发请求
+  if (!AI_VOICE_ENABLED) throw new Error('AI 口语练习暂时关闭')
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
   try {
