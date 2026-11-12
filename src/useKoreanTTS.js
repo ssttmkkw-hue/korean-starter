@@ -55,8 +55,16 @@ export function useKoreanTTS() {
       audio.playbackRate = rate
       audioElRef.current = audio
       if (onEnd) audio.addEventListener('ended', onEnd, { once: true })
-      audio.addEventListener('error', () => speakBrowser(text, rate, onEnd), { once: true })
-      audio.play().catch(() => speakBrowser(text, rate, onEnd))
+      // error 事件和 play() 的 reject 可能同时出现，只回退一次；
+      // 已经被新的 speak/stop 打断的音频（play() 会以 AbortError reject）不再回退，避免旧句子重新响起、onEnd 多触发
+      let fellBack = false
+      const fallback = () => {
+        if (fellBack || audioElRef.current !== audio) return
+        fellBack = true
+        speakBrowser(text, rate, onEnd)
+      }
+      audio.addEventListener('error', fallback, { once: true })
+      audio.play().catch(fallback)
       return
     }
     speakBrowser(text, rate, onEnd)

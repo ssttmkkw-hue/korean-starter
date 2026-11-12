@@ -78,6 +78,10 @@ export default function ImmersionPlayer({ speak, stop, slow, onRunningChange }) 
   useEffect(() => {
     statsRef.current = stats
   }, [stats])
+  // 条数变化时持久化（不放在 setStats 的 updater 里：updater 应为纯函数，StrictMode 下会被调用两次）
+  useEffect(() => {
+    if (stats.clips > 0) save(STATS_KEY, statsRef.current)
+  }, [stats.clips])
   useEffect(() => {
     onRunningChange?.(running)
   }, [running, onRunningChange])
@@ -158,30 +162,35 @@ export default function ImmersionPlayer({ speak, stop, slow, onRunningChange }) 
     setRevealed(false)
     const my = ++tokenRef.current
     const rate = slowRef.current ? 0.7 : settingsRef.current.rate
+    clearTimeout(gapTimerRef.current)
+    clearTimeout(watchRef.current)
 
+    // 每条只结算一次：ended、浏览器朗读 onend、兜底计时器可能先后都触发，
+    // 以前兜底先到、ended 后到时会计两次，还会排出两个 playNext 形成并行的两条播放链
+    let settled = false
     const done = () => {
-      if (tokenRef.current !== my || !runningRef.current) return
+      if (settled || tokenRef.current !== my || !runningRef.current) return
+      settled = true
       clearTimeout(watchRef.current)
       counterRef.current += 1
       playsRef.current.set(item.id, (playsRef.current.get(item.id) || 0) + 1)
       setHeard((h) => h + 1)
-      setStats((s) => {
-        const ns = { ...s, clips: s.clips + 1 }
-        save(STATS_KEY, ns)
-        return ns
-      })
+      setStats((s) => ({ ...s, clips: s.clips + 1 }))
       const [lo, hi] = GAPS[settingsRef.current.gap].range
       let gap = rand(lo, hi)
       if (Math.random() < 0.1) gap += rand(3, 7) // 偶尔安静一会儿
+      clearTimeout(gapTimerRef.current)
       gapTimerRef.current = setTimeout(playNext, gap * 1000)
     }
-    // 保险：万一 ended 事件没触发，也按时长估算继续
-    watchRef.current = setTimeout(done, Math.min(20, 3 + item.ko.length * 0.45) * 1000)
+    // 保险：万一 ended 事件没触发，也按时长估算继续（按语速放宽，避免慢速时提前结算）
+    watchRef.current = setTimeout(done, Math.min(25, (3 + item.ko.length * 0.45) / rate) * 1000)
     speak(item.ko, { rate, voice: item.voice, onEnd: done })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speak])
 
   const start = () => {
+    // 快速连点时 state 还没更新，按钮还在，防止启动两条播放链
+    if (runningRef.current) return
     runningRef.current = true
     setRunning(true)
     setFinished(false)
@@ -223,6 +232,7 @@ export default function ImmersionPlayer({ speak, stop, slow, onRunningChange }) 
 
   useEffect(() => () => {
     runningRef.current = false
+    tokenRef.current += 1
     clearTimeout(gapTimerRef.current)
     clearTimeout(watchRef.current)
   }, [])
